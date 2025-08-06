@@ -1,0 +1,2 @@
+MONGO_URI=mongodb+srv://tanvircse05:kifDXF2mUxgDOBnw@chat-server.zgpt5kp.mongodb.net/?retryWrites=true&w=majority&appName=chat-server
+PORT=5000
