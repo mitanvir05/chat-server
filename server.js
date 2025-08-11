@@ -41,7 +41,7 @@ io.on("connection", (socket) => {
   // --- User & Chat Handling ---
   socket.on("join", async (userId) => {
     users[userId] = socket.id;
-    socket.join(userId);
+    socket.join(userId); // Join a room with the user's own ID
     console.log(`User ${userId} joined with socket ID ${socket.id}`);
 
     io.emit("update-user-list", Object.keys(users));
@@ -64,11 +64,41 @@ io.on("connection", (socket) => {
 
     try {
       const savedMessage = await message.save();
+      // Emit to the recipient's room and the sender's room
       io.to(recipientId).emit("new-message", savedMessage);
       io.to(senderId).emit("new-message", savedMessage);
     } catch (error) {
       console.error("Error saving message:", error);
     }
+  });
+
+  // --- WebRTC Signaling ---
+  // The frontend emits 'call-user', we listen for it and forward the offer
+  socket.on("call-user", ({ toUserId, fromUserId, offer }) => {
+    const recipientSocketId = users[toUserId];
+    console.log(`📞 Relaying call from ${fromUserId} to ${toUserId}`);
+    io.to(recipientSocketId).emit("incoming-call", { fromUserId, offer });
+  });
+
+  // The callee answers the call and emits 'answer-call'
+  socket.on("answer-call", ({ toUserId, fromUserId, answer }) => {
+    const originalCallerSocketId = users[toUserId];
+    console.log(`📣 Relaying answer from ${fromUserId} to ${toUserId}`);
+    io.to(originalCallerSocketId).emit("call-answered", { fromUserId, answer });
+  });
+
+  // A peer has a new ICE candidate, relay it
+  socket.on("ice-candidate", ({ toUserId, fromUserId, candidate }) => {
+    const recipientSocketId = users[toUserId];
+    // console.log(`🧊 Relaying ICE candidate from ${fromUserId} to ${toUserId}`); // This can be very noisy
+    io.to(recipientSocketId).emit("ice-candidate", { fromUserId, candidate });
+  });
+
+  // A peer has ended the call
+  socket.on("end-call", ({ toUserId }) => {
+    const recipientSocketId = users[toUserId];
+    console.log(`🛑 Relaying end-call to ${toUserId}`);
+    io.to(recipientSocketId).emit("call-ended");
   });
 
   // --- Disconnect Handling ---
